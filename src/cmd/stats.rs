@@ -50,7 +50,7 @@ stats options:
     --nulls                Include NULLs in the population size for computing
                            mean and standard deviation.
     -j, --jobs <arg>       The number of jobs to run in parallel.
-                           This works better when the given CSV data has
+                           This has effect only if the given CSV data has
                            an index already created. Note that a file handle
                            is opened for each job.
                            When set to '0', the number of jobs is set to the
