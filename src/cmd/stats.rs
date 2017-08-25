@@ -86,6 +86,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
+    // Note that "headers" variable is a slight misnomer: it
+    // is the first row of the CSV, which can actually be
+    // not a hearder.
+    // TODO: rename to clarify
     let (headers, stats) = match args.rconfig().indexed()? {
         None => args.sequential_stats(),
         Some(idx) => {
@@ -115,6 +119,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 impl Args {
+    // If the index is not available, run stats calculation via a single 
+    // thread, sequentially.
     fn sequential_stats(&self) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
         let mut rdr = self.rconfig().reader()?;
         let (headers, sel) = self.sel_headers(&mut rdr)?;
@@ -122,6 +128,8 @@ impl Args {
         Ok((headers, stats))
     }
 
+    // If the index is available, run stats calculation via multiple threads 
+    // by splitting the dataset into chunks.
     fn parallel_stats(
         &self,
         idx: Indexed<fs::File, fs::File>,
@@ -182,6 +190,7 @@ impl Args {
         Ok(stats)
     }
 
+    // Reads column headers 
     fn sel_headers<R: io::Read>(
         &self,
         rdr: &mut csv::Reader<R>,

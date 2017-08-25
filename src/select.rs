@@ -9,10 +9,14 @@ use std::str::FromStr;
 use csv;
 use rustc_serialize::{Decodable, Decoder};
 
+// A "logical" selection of columns, consisting of several columns or ranges,
+// see `xsv select --help` and "Selection" struct
 #[derive(Clone)]
 pub struct SelectColumns {
     selectors: Vec<Selector>,
-    invert: bool,
+    invert: bool, // Select all columns but specified
+    // TODO: perhaps invert should apply to one range, not all of them?
+    // TODO: at any rate, clarify the documentation on inversion
 }
 
 impl SelectColumns {
@@ -30,6 +34,8 @@ impl SelectColumns {
         })
     }
 
+    // Renders "logical" selection as "physical" using column names if 
+    // available
     pub fn selection(
         &self,
         first_record: &csv::ByteRecord,
@@ -341,6 +347,7 @@ impl fmt::Debug for OneSelector {
     }
 }
 
+// A "physical" selection of columns - zero-based indices
 #[derive(Clone, Debug)]
 pub struct Selection(Vec<usize>);
 
