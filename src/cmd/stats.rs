@@ -6,6 +6,8 @@ use std::io;
 use std::iter::{FromIterator, repeat};
 use std::str::{self, FromStr};
 
+use itertools::Itertools;
+
 use chan;
 use csv;
 use stats::{Commute, OnlineStats, MinMax, Unsorted, merge_all};
@@ -124,8 +126,24 @@ impl Args {
     fn sequential_stats(&self) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
         let mut rdr = self.rconfig().reader()?;
         let (headers, sel) = self.sel_headers(&mut rdr)?;
-        let stats = self.compute(&sel, rdr.byte_records())?;
-        Ok((headers, stats))
+        let nthreads = self.njobs();
+        let pool = ThreadPool::new(nthreads);
+        let (chunks_send, chunks_recv) = chan::sync(nthreads);
+        let (results_send, results_recv) = chan::sync(0);
+        for _ in 0..nthreads {
+            let (results_send, chunks_recv, args, sel) = 
+                (results_send.clone(), chunks_recv.clone(), self.clone(), sel.clone());
+            pool.execute(move || {
+                results_send.send(args.compute(&sel, chunks_recv.iter().flatten()).unwrap());
+                drop(results_send);
+            });
+        }
+        for chunk in &rdr.byte_records().chunks(1024) {
+            chunks_send.send(chunk.collect::<Vec<_>>());
+        }
+        drop(results_send);
+        drop(chunks_send);
+        Ok((headers, merge_all(results_recv.iter()).unwrap_or_else(Vec::new)))
     }
 
     // If the index is available, run stats calculation via multiple threads 

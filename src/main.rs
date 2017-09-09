@@ -4,6 +4,7 @@ extern crate csv;
 extern crate csv_index;
 extern crate docopt;
 extern crate filetime;
+extern crate itertools;
 extern crate num_cpus;
 extern crate rand;
 extern crate regex;

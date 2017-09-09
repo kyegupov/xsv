@@ -10,3 +10,5 @@ ctags.rust
 main
 *.idx
 builds
+.vscode
+
