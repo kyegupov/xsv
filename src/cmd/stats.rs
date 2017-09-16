@@ -96,9 +96,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         None => args.sequential_stats(),
         Some(idx) => {
             if args.flag_jobs == 1 {
-                args.sequential_stats()
+                args.single_thread_sequential_stats()
             } else {
-                args.parallel_stats(idx)
+                args.parallel_stats_using_index(idx)
             }
         }
     }?;
@@ -121,9 +121,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 impl Args {
+    fn sequential_stats(&self) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
+        if self.njobs() == 1 {
+            return self.single_thread_sequential_stats();
+        } else {
+            return self.parallelized_sequential_stats();
+        }
+    }
+
     // If the index is not available, run stats calculation via a single 
     // thread, sequentially.
-    fn sequential_stats(&self) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
+    fn single_thread_sequential_stats(&self) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
+        let mut rdr = self.rconfig().reader()?;
+        let (headers, sel) = self.sel_headers(&mut rdr)?;
+        let stats = self.compute(&sel, rdr.byte_records())?;
+        Ok((headers, stats))
+    }
+
+    fn parallelized_sequential_stats(&self) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
         let mut rdr = self.rconfig().reader()?;
         let (headers, sel) = self.sel_headers(&mut rdr)?;
         let nthreads = self.njobs();
@@ -147,15 +162,15 @@ impl Args {
     }
 
     // If the index is available, run stats calculation via multiple threads 
-    // by splitting the dataset into chunks.
-    fn parallel_stats(
+    // by pre-splitting the dataset into chunks.
+    fn parallel_stats_using_index(
         &self,
         idx: Indexed<fs::File, fs::File>,
     ) -> CliResult<(csv::ByteRecord, Vec<Stats>)> {
         // N.B. This method doesn't handle the case when the number of records
         // is zero correctly. So we use `sequential_stats` instead.
         if idx.count() == 0 {
-            return self.sequential_stats();
+            return self.single_thread_sequential_stats();
         }
 
         let mut rdr = self.rconfig().reader()?;
